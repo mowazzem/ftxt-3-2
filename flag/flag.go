@@ -1,18 +1,19 @@
 package flag
 
 import (
-	"bufio"
 	"encoding/json"
-	"io/ioutil"
+	"ftxt-3-2/model"
 	"net/http"
-	"os"
-	"path/filepath"
+
+	"github.com/hashicorp/go-memdb"
 )
 
-type flagHandler struct{}
+type flagHandler struct {
+	db *memdb.MemDB
+}
 
-func NewFlagHandler() *flagHandler {
-	return &flagHandler{}
+func NewFlagHandler(db *memdb.MemDB) *flagHandler {
+	return &flagHandler{db}
 }
 
 type Body struct {
@@ -27,38 +28,28 @@ func (fh *flagHandler) PutFlag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		w.Write([]byte("error occured: " + err.Error()))
-		return
-	}
+	txn := fh.db.Txn(true)
 
-	path := filepath.Join(cwd, "flag.txt")
-	newFilepath := filepath.FromSlash(path)
-	file, err := os.Create(newFilepath)
-	if err != nil {
-		w.Write([]byte("error occured: " + err.Error()))
-		return
-	}
-	defer file.Close()
+	flg := model.Flag{Flag: b.Flag}
 
-	fw := bufio.NewWriter(file)
-	fw.WriteString(b.Flag)
-	fw.Flush()
+	if err := txn.Insert("flag", &flg); err != nil {
+		w.Write([]byte("error occured: " + err.Error()))
+	}
+	txn.Commit()
 }
 
 func (fh *flagHandler) GetFlag(w http.ResponseWriter, r *http.Request) {
-	cwd, err := os.Getwd()
+	txn := fh.db.Txn(false)
+	raw, err := txn.First("flag", "id")
 	if err != nil {
 		w.Write([]byte("error occured: " + err.Error()))
-		return
 	}
 
-	path := filepath.Join(cwd, "flag.txt")
-	newFilepath := filepath.FromSlash(path)
+	flg := raw.(*model.Flag)
 
-	bytes, err := ioutil.ReadFile(newFilepath)
-
-	w.WriteHeader(http.StatusOK)
+	bytes, err := json.Marshal(flg)
+	if err != nil {
+		w.Write([]byte("error occured: " + err.Error()))
+	}
 	w.Write(bytes)
 }

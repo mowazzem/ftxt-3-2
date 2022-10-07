@@ -9,11 +9,34 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/hashicorp/go-memdb"
 )
 
 func main() {
+	// Create the DB schema
+	schema := &memdb.DBSchema{
+		Tables: map[string]*memdb.TableSchema{
+			"flag": &memdb.TableSchema{
+				Name: "flag",
+				Indexes: map[string]*memdb.IndexSchema{
+					"id": &memdb.IndexSchema{
+						Name:    "id",
+						Unique:  true,
+						Indexer: &memdb.StringFieldIndex{Field: "Flag"},
+					},
+				},
+			},
+		},
+	}
+
+	// Create a new data base
+	db, err := memdb.NewMemDB(schema)
+	if err != nil {
+		panic(err)
+	}
+
 	loginHandler := login.NewLoginHandler()
-	flagHandler := flag.NewFlagHandler()
+	flagHandler := flag.NewFlagHandler(db)
 	r := mux.NewRouter()
 	r.HandleFunc("/login", loginHandler.Login).Methods("PUT")
 	r.HandleFunc("/flag", flagHandler.PutFlag).Methods("PUT")
