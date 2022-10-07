@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
@@ -18,10 +19,15 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
+type response struct {
+	Token string `json:"token"`
+}
+
 func (lh *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var credentials Credentials
 	err := json.NewDecoder(r.Body).Decode(&credentials)
 	if err != nil {
+		log.Println(err)
 		w.Write([]byte("error occured: " + err.Error()))
 		return
 	}
@@ -32,6 +38,17 @@ func (lh *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	shaChecksum := hex.EncodeToString(hash.Sum(nil))
 
+	resp := response{
+		Token: shaChecksum,
+	}
+
+	result, err := json.Marshal(&resp)
+	if err != nil {
+		log.Println(err)
+		w.Write([]byte("error occured: " + err.Error()))
+		return
+	}
+
 	w.Header().Add("Content-type", "application/json")
-	w.Write([]byte(shaChecksum))
+	w.Write(result)
 }
